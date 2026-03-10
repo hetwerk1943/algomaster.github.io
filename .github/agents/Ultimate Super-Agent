@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Ultimate Super-Agent Setup</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+code { background-color: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
+pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 5px; }
+h1, h2, h3 { color: #2a5d9f; }
+button { margin: 5px 0; padding: 8px 12px; background-color: #2a5d9f; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+button:hover { background-color: #1f4a7a; }
+section { margin-bottom: 30px; }
+</style>
+</head>
+<body>
+<h1>Ultimate Super-Agent - Automatyczne przygotowanie repozytorium</h1>
+
+<section>
+<h2>Instrukcje ogólne</h2>
+<p>Ten dokument zawiera pełny plan konfiguracji repozytorium <code>ultimate-super-agent</code> wraz z generatorami, walidatorami, testami, workflow GitHub Actions i konfiguracją bezpieczeństwa.</p>
+<ul>
+<li>Repozytorium Python + Bash + opcjonalnie Node.js</li>
+<li>Artefakt: <code>super-agent-10000.json</code> (nie commitować codziennie)</li>
+<li>Używaj GitHub Secrets do tokenów i kluczy</li>
+<li>Automatyczny workflow CI i preview</li>
+</ul>
+</section>
+
+<section>
+<h2>Struktura repozytorium</h2>
+<pre>
+ultimate-super-agent/
+├─ src/super_agent/
+│   ├─ __init__.py
+│   ├─ generator.py
+│   ├─ validator.py
+│   ├─ io.py
+│   └─ utils.py
+├─ Scenariusze/
+│   ├─ generate_super_agent.py
+│   ├─ validate_super_agent.py
+│   ├─ pr_create.py
+│   └─ deploy_artifact.py
+├─ Testy/jednostka/ integracja/
+├─ Konfiguracje/super_agent_schema.json
+├─ dokumenty/README.md, QUICK_START.md, DEVELOPMENT_GUIDE.md, ARCHITECTURE.md
+├─ .github/workflows/ci.yml, preview-generate.yml
+├─ Narzędzia/
+├─ Docker/Dockerfile.generator, docker-compose.yml
+├─ częściowe/partial.json
+├─ artefakty/ (gitignored lub LFS)
+├─ .pre-commit-config.yaml
+├─ pyproject.toml
+└─ requirements-dev.txt
+</pre>
+</section>
+
+<section>
+<h2>GitHub Secrets i bezpieczeństwo</h2>
+<ul>
+<li>Token GH: <code>GH_TOKEN</code> do automatycznego otwierania PR</li>
+<li>Opcjonalnie klucze API dla S3/Prometheus</li>
+<li>Nie commituj artefaktów ani sekretów</li>
+<li>Git LFS dla dużych plików JSON</li>
+<li>Pre-commit: flake8, black, trailing-whitespace, end-of-file-fixer</li>
+</ul>
+</section>
+
+<section>
+<h2>Workflow GitHub Actions</h2>
+<h3>CI (lint, test, walidacja)</h3>
+<pre>
+name: CI
+on:
+  push:
+    branches: [ main, 'ultra-agent-dev' ]
+  pull_request:
+    paths:
+      - 'src/**'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with: python-version: 3.10
+      - run: pip install -r requirements-dev.txt
+      - run: pre-commit run --all-files
+      - run: pytest
+      - run: python Scenariusze/validate_super_agent.py --schema Konfiguracje/super_agent_schema.json --partial częściowe/partial.json
+</pre>
+
+<h3>Preview artefaktu</h3>
+<pre>
+name: Preview Generate
+on:
+  workflow_dispatch:
+    inputs:
+      preview_size:
+        description: 'Number of records to preview'
+        required: false
+jobs:
+  generate-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with: python-version: 3.10
+      - run: pip install -r requirements-dev.txt
+      - run: |
+          python Scenariusze/generate_super_agent.py --partial częściowe/partial.json --preview ${{ github.event.inputs.preview_size }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: super-agent-preview
+          path: artefakty/super-agent-preview.json
+</pre>
+</section>
+
+<section>
+<h2>Autonomiczny commit i PR</h2>
+<p>Skrypt <code>Scenariusze/auto_commit_pr.py</code>:</p>
+<ul>
+<li>Uruchamia generator i walidator</li>
+<li>Tworzy gałąź i commit nowych artefaktów</li>
+<li>Otwiera PR automatycznie przy użyciu <code>GH_TOKEN</code></li>
+<li>Wymaga ludzkiej akceptacji dla gałęzi głównej</li>
+</ul>
+</section>
+
+<section>
+<h2>Pre-commit config</h2>
+<pre>
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+    - id: trailing-whitespace
+    - id: end-of-file-fixer
+</pre>
+</section>
+
+<section>
+<h2>Python dependencies</h2>
+<pre>
+# pyproject.toml
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "super-agent-generator"
+
+# requirements-dev.txt
+pytest
+flake8
+black
+jsonschema
+pre-commit
+</pre>
+</section>
+
+<section>
+<h2>Kolejne kroki do pobrania</h2>
+<button onclick="alert('Zalecam pobrać wszystkie pliki startowe src/, Scenariusze/, Testy/, Konfiguracje/ i dokumenty ręcznie lub przez gh CLI')">Pobierz wszystkie pliki startowe</button>
+<p>Po pobraniu i dodaniu do repo: skonfiguruj GitHub Secrets i uruchom CI oraz workflow preview.</p>
+</section>
+
+<section>
+<h2>Automatyczna decyzja AI</h2>
+<p>Repozytorium zostanie od razu zorganizowane i gotowe do:</p>
+<ul>
+<li>Generowania pełnego super-agent-10000.json</li>
+<li>Walidacji i podglądu artefaktów</li>
+<li>Testów jednostkowych i integracyjnych</li>
+<li>Bezpiecznej obsługi sekretów i artefaktów</li>
+<li>Autonomicznego commitowania i tworzenia PR przy zmianach partial.json</li>
+</ul>
+</section>
+
+</body>
+</html>
